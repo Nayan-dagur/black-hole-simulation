@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relativistic Black Hole Simulator | General Relativity & GLSL Ray Marching</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- Three.js from unpkg CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <!-- Canvas container for WebGL -->
+  <div id="canvas-container"></div>
+
+  <!-- Ambient audio toggle or indicators -->
+  <div class="hud-top">
+    <div class="hud-brand">
+      <div class="pulse-indicator"></div>
+      <div class="title-group">
+        <h1>SINGULARITY // GR-1</h1>
+        <span class="subtitle">General Relativity Null Geodesic Raytracer</span>
+      </div>
+    </div>
+    
+    <div class="hud-metrics">
+      <div class="metric-box">
+        <span class="metric-label">FPS</span>
+        <span class="metric-value" id="fps-counter">60</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">SCHWARZSCHILD r<sub>s</sub></span>
+        <span class="metric-value" id="rs-display">1.00 M</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">PHOTON SPHERE</span>
+        <span class="metric-value" id="ps-display">1.50 r<sub>s</sub></span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">ISCO RADIUS</span>
+        <span class="metric-value" id="isco-display">3.00 r<sub>s</sub></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Left Side: Interactive Physics & Visual Controls HUD -->
+  <div class="hud-panel" id="controls-panel">
+    <div class="panel-header">
+      <h2>PHYSICS CONTROLS</h2>
+      <button id="toggle-panel-btn" title="Toggle Controls">_</button>
+    </div>
+
+    <div class="panel-content">
+      <!-- Preset Selection -->
+      <div class="control-group">
+        <label>PRESET PROFILE</label>
+        <div class="preset-buttons">
+          <button class="preset-btn active" data-preset="gargantua">Interstellar</button>
+          <button class="preset-btn" data-preset="m87">M87* EHT</button>
+          <button class="preset-btn" data-preset="pure">Pure Lens</button>
+          <button class="preset-btn" data-preset="pulsar">Hyperactive</button>
+        </div>
+      </div>
+
+      <!-- Mass / Radius Slider -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-mass">Black Hole Mass (M)</label>
+          <span class="val" id="val-mass">1.0</span>
+        </div>
+        <input type="range" id="slider-mass" min="0.3" max="2.5" step="0.05" value="1.0">
+        <span class="tip">Directly scales event horizon $r_s = 2GM/c^2$</span>
+      </div>
+
+      <!-- Accretion Disk Brightness -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-disk-brightness">Accretion Disk Brightness</label>
+          <span class="val" id="val-disk-brightness">2.2</span>
+        </div>
+        <input type="range" id="slider-disk-brightness" min="0.0" max="5.0" step="0.1" value="2.2">
+      </div>
+
+      <!-- Doppler Beaming Effect -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-doppler">Relativistic Doppler Beaming</label>
+          <span class="val" id="val-doppler">1.0</span>
+        </div>
+        <input type="range" id="slider-doppler" min="0.0" max="2.0" step="0.05" value="1.0">
+        <span class="tip">Blue-shifts and brightens gas approaching observer</span>
+      </div>
+
+      <!-- Disk Rotation Speed -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-rotation">Disk Rotation Speed</label>
+          <span class="val" id="val-rotation">0.4</span>
+        </div>
+        <input type="range" id="slider-rotation" min="0.0" max="2.0" step="0.05" value="0.4">
+      </div>
+
+      <!-- Starfield & Background -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-stars">Starfield Exposure</label>
+          <span class="val" id="val-stars">1.2</span>
+        </div>
+        <input type="range" id="slider-stars" min="0.2" max="3.0" step="0.1" value="1.2">
+      </div>
+
+      <!-- Raymarching Step Size (Quality vs Perf) -->
+      <div class="control-group">
+        <div class="label-row">
+          <label for="slider-steps">Max Geodesic Steps</label>
+          <span class="val" id="val-steps">160</span>
+        </div>
+        <input type="range" id="slider-steps" min="60" max="300" step="10" value="160">
+        <span class="tip">Higher = sharper gravitational lensing near horizon</span>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-buttons">
+        <button id="reset-cam-btn" class="action-btn">RESET ORBIT</button>
+        <button id="screenshot-btn" class="action-btn highlight">CAPTURE HD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Interactive Helper -->
+  <div class="hud-bottom">
+    <div class="instructions">
+      <span class="key">CLICK + DRAG</span> Orbit Camera &nbsp;|&nbsp; 
+      <span class="key">SCROLL</span> Zoom In/Out &nbsp;|&nbsp; 
+      <span class="key">H</span> Toggle HUD
+    </div>
+  </div>
+
+  <!-- Educational Explainer Modal / Bottom-Right Widget -->
+  <div class="theory-card">
+    <div class="theory-header">
+      <span class="tag">GENERAL RELATIVITY</span>
+      <span class="title">How Spacetime Bends Light</span>
+    </div>
+    <p class="theory-body">
+      In flat space, light travels along straight lines. Around mass $M$, spacetime curvature curves light trajectories according to the null geodesic equation:
+      $$\frac{d^2 \mathbf{r}}{d\lambda^2} = -\frac{3 r_s}{2 r^5} |\mathbf{r} \times \mathbf{v}|^2 \mathbf{r}$$
+      Notice how rays looping around the photon sphere ($1.5 r_s$) produce dual images of the rear accretion disk over the top and bottom!
+    </p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
